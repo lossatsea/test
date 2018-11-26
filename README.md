@@ -117,7 +117,7 @@ function removeMember(address node, uint payment) public mustInitial onlyMember{
     
   /*发起一个投票*/
     voteState = VoteState.isVoting;
-    currentVote = Vote({okNum:1,voteNum:0,totalNum:memberNum-2,pay:payment,theNode:node,voteResult:VoteResult.NONE,voteType:VoteType.REMOVE});
+    currentVote = Vote({okNum:0,voteNum:0,totalNum:memberNum-1,pay:payment,theNode:node,voteResult:VoteResult.NONE,voteType:VoteType.REMOVE});
   /*清空成员的投票状态*/
     clearVoted();
   /*默认提出者投赞成票*/
@@ -155,7 +155,7 @@ function vote(bool isOk) public mustInitial onlyMember{
     if(currentVote.okNum > currentVote.totalNum / 2){
         resultOfOK(); //赞成数过半，投票通过
     }
-    else if(currentVote.okNum + currentVote.totalNum / 2 < currentVote.voteNum){
+    else if(currentVote.okNum + currentVote.totalNum / 2 <= currentVote.voteNum){
         resultOfNO();   //赞成数无法过半，投票不通过
     }
 }
@@ -268,6 +268,14 @@ function updateInfo(string memory newInfo) public mustInitial onlyMember{
 }
 ```
 
+(13) 查询自己的债务
+
+```js
+function getDebt() public view mustInitial returns(uint){
+    return debts[msg.sender];
+}
+```
+
 ---
 
 ### 部署测试
@@ -354,7 +362,9 @@ Deploy合约
 
 ![checkVote2]()
 
-结果经过软磨硬泡账户1勉强答应，账户3顺利进入了企划。然而进入企划不久账户3就做出了违规行为，账户1发起了针对账户3移出企划的投票，并设置违约金罚款为20：
+这里的返回值第二个是false，说明投票没有通过。
+
+结果经过软磨硬泡账户1勉强答应，账户3终于进入了企划。然而进入企划不久账户3就做出了违规行为，账户1发起了针对账户3移出企划的投票，并设置违约金罚款为20：
 
 ![remove]()
 
@@ -366,15 +376,23 @@ Deploy合约
 
 ![checkVote3]()
 
+这里的返回值第一个为1，说明投票类型是“移出”投票。
+
 发现自己被逐出了企划，还背了20的债，现在的他查询不了企划的信息：
 
 ![getInfo5]()
+
+![getDebtRes1]()
 
 没办法，企划成员亮出债务单随时都可以来要债，只好乖乖把债还了，因为觉得对不起引荐的账户2，决定还30的债务：
 
 ![pay]()
 
 ![payRes]()
+
+至少他现在看自己的债务，无债一身轻了：
+
+![getDebrRes2]()
 
 这时账户1查询企划的余额，发现从0变成了30：
 
