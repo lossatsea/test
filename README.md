@@ -229,12 +229,38 @@ function checkVoteResult() public view mustInitial returns(VoteType votetype, bo
 (10) 查询企划信息
 
 ```js
- function getInfo() public view mustInitial onlyMember returns(string memory){
+/*返回字符串的查询*/
+function getInfoOfString() public view mustInitial onlyMember returns(string memory){
     return info;
+}
+
+/*返回bytes32的查询*/
+function getInfoOfBytes32() public view mustInitial onlyMember returns(bytes32){
+    bytes memory information = bytes(info);
+    bytes32 res;
+    assembly {
+        res := mload(add(information, 32))
+    }
+    return res;
 }
 ```
 
-(11) 查询企划余额
+(11) 更新企划信息：在原信息的基础上增加企划信息，传入新信息字符串newInfo
+
+```js
+function updateInfo(string memory newInfo) public mustInitial onlyMember{
+    bytes memory _info = bytes(info);
+    bytes memory _newInfo = bytes(newInfo);
+    bytes memory res = new bytes(_info.length + _newInfo.length);
+    for(uint i = 0; i < res.length; i++){
+        if(i < _info.length) res[i] = _info[i];
+        else res[i] = _newInfo[i - _info.length];
+    }
+    info = string(res);
+} 
+```
+
+(12) 查询企划余额
 
 ```js
  function getSaving() public view mustInitial onlyMember returns(uint){
@@ -248,3 +274,64 @@ function checkVoteResult() public view mustInitial returns(VoteType votetype, bo
 
 在remix上进行部署测试：
 
+Deploy合约
+
+![deploy]()
+
+尝试查询信息，抛出合约还未初始化的异常.
+
+![error1]()
+
+当前账户为0xca35b7d915458ef540ade6068dfe2f44e8fa733c，称之为账户1，账户1是企划发起人，让他进行初始化“OK!”，成为第一个成员：
+
+![account1]()
+
+![init]()
+![initRes]()
+
+账户1查询合约信息，返回字符串为“OK!”，返回的bytes32为“OK!”的ascll码：
+
+![getInfo1]()
+![getInfo2]()
+
+账户1查询合约余额为0：
+
+![getSaving1]()
+
+切换到另一个账户0x14723a09acff6d2a60dcdf7aa4aff308fddc160c，称之为账户2，让他查询合约信息，抛出他不是成员的异常：
+
+![account2]()
+![error2]()
+
+现在账户2不是成员什么事情都干不了，他想要加入这个企划，因此调用addMember方法，看到成功调用：
+
+![addMember]()
+
+这时企划内部发起了一次投票，怎么能看得出来？可以让账户2看一下投票结果：
+
+![error3]()
+
+发现异常为“投票正在进行中”，不能查询。此时企划内部这开了一场“激烈”的投票，作为唯一成员的账户1决定投出赞成的一票：
+
+![vote1]()
+
+![voteRes1]()
+
+现在账户2可以去看结果了：
+
+![checkVote1]()
+
+这里的返回值，第一个0表示投票类型是ADD，即“加入”投票，第二个true是结果，投票通过，第三个是本次投片针对的账户，这里就是账户2。现在账户2成为了企划的一员，可以查询企划信息了：
+
+![getInfo3]()
+
+现在账户2决定做出自己的贡献，他们商议了企划的类型为动画企划，账户2要更新企划信息：
+
+![updateInfo]()
+![updateInfoRes]
+
+账户1要看看企划信息是不是进行了更新，调用getIbfoOfString来查看：
+
+![getInfo4]()
+
+没错，确实已经更新了
