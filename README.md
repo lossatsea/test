@@ -98,6 +98,7 @@ function addMember() public mustInitial{
   /*要求调用者不是企划成员并且当前没有正在进行的投票*/
     require(members[msg.sender].weight == 0, "You have been the member of project.");
     require(voteState != VoteState.isVoting, "Now a voting is going, please wait a minute.");
+    
   /*发起一个投票*/
     voteState = VoteState.isVoting;
     currentVote = Vote({okNum:0,voteNum:0,totalNum:memberNum,pay:0,theNode:msg.sender,voteResult:VoteResult.NONE,voteType:VoteType.ADD});
@@ -113,6 +114,7 @@ function removeMember(address node, uint payment) public mustInitial onlyMember{
   /*要求移出者为企划成员并且当前没有正在进行的投票*/
     require(members[node].weight > 0, "This node is not the member of project");
     require(voteState == VoteState.notVoting, "There is a vote going.");
+    
   /*发起一个投票*/
     voteState = VoteState.isVoting;
     currentVote = Vote({okNum:1,voteNum:0,totalNum:memberNum-2,pay:payment,theNode:node,voteResult:VoteResult.NONE,voteType:VoteType.REMOVE});
@@ -144,6 +146,7 @@ function vote(bool isOk) public mustInitial onlyMember{
     require(currentVote.theNode != msg.sender, "You is the one be voted.");
   /*要求还没有投过票*/
     require(!currentVote.isVoted[msg.sender], "You have voted.");
+    
   /*投票*/
     currentVote.isVoted[msg.sender] = true;
     if(isOk) currentVote.okNum++;
@@ -161,5 +164,87 @@ function vote(bool isOk) public mustInitial onlyMember{
 (7) 投票结果的逻辑，包括通过与不通过两种，为internal类型
 
 ```js
+/*投票通过*/
+function resultOfOK() internal{
+    voteState = VoteState.notVoting;    //投票状态置为无投票
+  /*当投票类型是加入时，将投票针对的节点加入企划之中*/
+    if(currentVote.voteType == VoteType.ADD){
+        members[currentVote.theNode].weight = 1;
+        currentVote.voteResult = VoteResult.YES;    //投票结果为OK
+        memberNum++;
+        memberAddr.push(currentVote.theNode);
+        members[currentVote.theNode].index = memberNum;
+    }else{
+   /*当投票类型时移出时，将投票针对的节点移出企划，并将罚款计入债务单*/
+        members[currentVote.theNode].weight = 0;
+        currentVote.voteResult = VoteResult.YES;
+        memberNum--;
+        delete memberAddr[members[currentVote.theNode].index - 1];
+        members[currentVote.theNode].index = 0;
+        debts[currentVote.theNode] = currentVote.pay;
+    }
+}
 
+/*投票不通过*/
+function resultOfNO() internal{
+    voteState = VoteState.notVoting;    //投票状态置为五投票
+    currentVote.voteResult = VoteResult.NO; //投票结果为NO
+}
 ```
+
+(8) 支付罚款：移出的节点需要支付债务单上的债务（支付多了也不会还给他，2333），是payable类型
+
+```js
+function pay() public payable mustInitial{
+  /*要求调用者在企划的债务单上有债务*/
+    require(debts[msg.sender] > 0, "You have no debet in the project.");
+    
+    debts[msg.sender] -= msg.value;
+    if(debts[msg.sender] < 0) debts[msg.sender] = 0;
+}
+```
+
+(9) 查看投票结果：投票结束后，查看上一次投票的结果，返回投票的类型，结果和针对的节点地址
+
+```js
+function checkVoteResult() public view mustInitial returns(VoteType votetype, bool res, address theNode){
+  /*要求调用者是企划成员或者就是投票针对的节点自己*/
+    require(currentVote.theNode == msg.sender || members[msg.sender].weight > 0, "You have no right to check result.");
+  /*要求有历史投票记录，也就是说不能没有投过票*/
+    require(voteState != VoteState.none,"There is no vote in the history.");
+  /*要求当前没有正在进行的投票*/
+    require(voteState == VoteState.notVoting,"The voting is going.");
+    
+    votetype = currentVote.voteType;
+    if(currentVote.voteResult == VoteResult.YES){
+        res = true;
+    } 
+    else {
+        res = false;
+    }
+    return (votetype, res, currentVote.theNode);
+}
+```
+
+(10) 查询企划信息
+
+```js
+ function getInfo() public view mustInitial onlyMember returns(string memory){
+    return info;
+}
+```
+
+(11) 查询企划余额
+
+```js
+ function getSaving() public view mustInitial onlyMember returns(uint){
+    return address(this).balance;
+}
+```
+
+---
+
+### 部署测试
+
+在remix上进行部署测试：
+
